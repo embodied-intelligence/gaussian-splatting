@@ -9,7 +9,9 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 import os
+import random
 from argparse import ArgumentParser
+from pathlib import Path
 
 import torch
 import numpy as np
@@ -17,6 +19,7 @@ import subprocess
 
 import torch
 from matplotlib import pyplot as plt
+from params_proto import PrefixProto, Proto
 
 from scene import Scene
 import os
@@ -41,27 +44,18 @@ from utils.general_utils import safe_state
 from arguments import ModelParams, PipelineParams
 from gaussian_renderer import GaussianModel
 
-def run_render():
+def GSArgs(model_path):
     from argparse import ArgumentParser, Namespace
     parser = ArgumentParser(description="Testing script parameters")
-
-    model = ModelParams(parser, sentinel=True)
-    pipeline = PipelineParams(parser)
+    model_args = ModelParams(parser, sentinel=True)
+    pipline_args = PipelineParams(parser)
     parser.add_argument("--iteration", default=-1, type=int)
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--quiet", action="store_true")
-
-    #load a model
-    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/red_brick_video"] # hloc
-    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/red_brick_colmap"] #colmap
-    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/lab_stair_v1_colycam"]
-    ##cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/e85b6241-c"]
-
-    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/fd986845-9"] #ball
+    cmdlne_string = ["-m", model_path]
     cfgfile_string = "Namespace()"
     args_cmdline = parser.parse_args(cmdlne_string)
-
     cfgfilepath = os.path.join(args_cmdline.model_path, "cfg_args")
     print("Looking for config file in", cfgfilepath)
     with open(cfgfilepath) as cfg_file:
@@ -75,14 +69,20 @@ def run_render():
         if v != None:
             merged_dict[k] = v
     args = Namespace(**merged_dict)
+    return args, model_args, pipline_args
+
+def main():
+
+    model_path = "/home/beantown/ran/gaussian-splatting/output/fd986845-9"
+    args,  model_args, pipline_args= GSArgs(model_path=model_path)
 
     #Initialize system state (RNG)
     safe_state(args.quiet)
 
     ##render_sets
-    dataset = model.extract(args)
+    dataset = model_args.extract(args)
     iteration = args.iteration
-    pipeline = pipeline.extract(args)
+    pipeline = pipline_args.extract(args)
 
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
@@ -115,19 +115,23 @@ def run_render_with_view(view, others):
 
     with torch.no_grad():
         view = view['camera']
-        gt = test_camera.original_image[0:3, :, :]
+        #gt = test_camera.original_image[0:3, :, :]
 
         #Rt = c2w
         R, T = transformation_vuer2gs(view['matrix'])
         fov_rad = math.radians(view['fov'])
         trans = np.array(view['position'])
+        aspect = view['aspect']
+        height = view['height']
+        width = view['width']
 
         gs_camera = cameras.Camera(
             colmap_id=0, R=R, T=T,
             FoVx=fov_rad, FoVy=fov_rad,
-            image= gt, gt_alpha_mask=None,
+            image= None, gt_alpha_mask=None,
             image_name=None, uid=0,
-            trans=trans
+            trans=trans,
+            image_width=width, image_height = height,
         )
 
         rendering = render(gs_camera, gaussians, pipeline, background)["render"]
@@ -137,21 +141,7 @@ def run_render_with_view(view, others):
 
 
 if __name__ == "__main__":
-    # Set up command line argument parser
-    # parser = ArgumentParser(description="Testing script parameters")
-    # model = ModelParams(parser, sentinel=True)
-    # pipeline = PipelineParams(parser)
-    # parser.add_argument("--iteration", default=-1, type=int)
-    # parser.add_argument("--skip_train", action="store_true")
-    # parser.add_argument("--skip_test", action="store_true")
-    # parser.add_argument("--quiet", action="store_true")
-    # args = get_combined_args(parser)
-    # print("Rendering " + args.model_path)
-    #
-    # # Initialize system state (RNG)
-    # safe_state(args.quiet)
-    #
-    # render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test)
+
     view  = {'camera': {
     'matrix': [1.0, 0.0, 0.0, 0.0,
                0.0, 1.0, 0.0, 0.0,
@@ -159,7 +149,7 @@ if __name__ == "__main__":
                0.0, 0.0, 0.0, 1.0],
     'position': [0.0, 0.0, 0.0],
     'fov': 75,
-    },
-}
-    others = run_render()
+        },
+    }
+    others = main()
     run_render_with_view(view, others)
