@@ -1,27 +1,25 @@
+import time
 from asyncio import sleep
 from pathlib import Path
+from pprint import pprint
 
-import imageio as iio
-from tqdm import tqdm
-
+from params_proto import ParamsProto
 from vuer import Vuer
 from vuer.events import ClientEvent
-from vuer.schemas import Scene, ImageBackground, SceneBackground
+from vuer.schemas import Scene, ImageBackground
 
-#import sys
-#sys.path.append("/home/beantown/ran/mit/Scaffold-GS")
+# import sys
+# sys.path.append("/home/beantown/ran/mit/Scaffold-GS")
 import render_ran as GS
-init_camera = {'camera': {
-    'matrix': [1.0, 0.0, 0.0, 0.0,
-               0.0, 1.0, 0.0, 0.0,
-               0.0, 0.0, 1.0, 0.0,
-               0.0, 0.0, 0.0, 1.0],
-    'position': [0.0, 0.0, 0.0],
-    'fov': 75,
-    },
-}
-others = GS.run_render() #load GS model
-image = GS.run_render_with_view(init_camera, others) #get initial image
+
+class GSVuer(ParamsProto):
+    eps = 0.001
+    fps = 30
+
+
+others = GS.main()  # load GS model
+timestamp = time.time()
+render_params = None
 
 assets_folder = Path(__file__).parent / "../../assets"
 app = Vuer(
@@ -39,39 +37,49 @@ app = Vuer(
 
 @app.spawn
 async def show_heatmap(session):
+    global render_params
     session.set @ Scene(up=[0, -1, 0])
 
     while True:
+        if render_params is None:
+            await sleep(0.016)
+            continue
 
+        image = GS.run_render_with_view(render_params, others)
+        render_params = None
+
+        session.upsert(
+            ImageBackground(
+                # Can scale the images down.
+                # image,
+                #image[::2, ::2],
+                image,
+                # One of ['b64png', 'png', 'b64jpg', 'jpg']
+                # 'b64png' does not work for some reason, but works for the nerf demo.
+                # 'jpg' encoding is significantly faster than 'png'.
+                format="jpg",
+                quality="90",
+                key="background",
+                interpolate=True,
+            ),
+            to="bgChildren",
+        )
         # 'jpg' encoding should give you about 30fps with a 16ms wait in-between.
-        await sleep(1)
+        await sleep(0.030)
 
 
 async def on_camera(event: ClientEvent, session):
-    global image, others
-    image = GS.run_render_with_view(event.value, others)
+    global render_params, timestamp
     assert event == "CAMERA_MOVE", "the event type should be correct"
+    render_params = event.value
+    timestamp = time.time()
+    pprint(event.value)
     # print("camera event", event.etype, event.value)
-    print("world transformation")
-    world = event.value['world']
-    print("position", world['position'])
-    print("rotation", world['rotation'])
+    # print("world transformation")
+    # world = event.value['world']
+    # print("position", world['position'])
+    # print("rotation", world['rotation'])
 
-    session.upsert(
-        ImageBackground(
-            # Can scale the images down.
-            image[::3, ::3],
-            # One of ['b64png', 'png', 'b64jpg', 'jpg']
-            # 'b64png' does not work for some reason, but works for the nerf demo.
-            # 'jpg' encoding is significantly faster than 'png'.
-            format="jpg",
-            quality="90",
-            key="background",
-            interpolate=True,
-        ),
-        to="bgChildren",
-    )
-    await sleep(0.0)
 
 app.add_handler("CAMERA_MOVE", on_camera)
 app.run()
