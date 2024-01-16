@@ -53,7 +53,12 @@ def run_render():
     parser.add_argument("--quiet", action="store_true")
 
     #load a model
-    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/5db04bc0-9"]
+    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/red_brick_video"] # hloc
+    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/red_brick_colmap"] #colmap
+    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/lab_stair_v1_colycam"]
+    ##cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/e85b6241-c"]
+
+    cmdlne_string = ["-m", "/home/beantown/ran/gaussian-splatting/output/fd986845-9"] #ball
     cfgfile_string = "Namespace()"
     args_cmdline = parser.parse_args(cmdlne_string)
 
