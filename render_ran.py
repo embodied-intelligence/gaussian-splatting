@@ -73,7 +73,9 @@ def GSArgs(model_path):
 
 def main():
 
-    model_path = "/home/beantown/ran/gaussian-splatting/output/fd986845-9"
+    model_path = "/home/beantown/ran/gaussian-splatting/output/fd986845-9" # ball_add
+    #model_path = "/home/beantown/ran/gaussian-splatting/output/353df241-2" # stair_feature1
+    model_path = "/home/beantown/datasets/lucidSim/scenes/mit_stairs/stairs_0004_v1/output_gs"
     args,  model_args, pipline_args= GSArgs(model_path=model_path)
 
     #Initialize system state (RNG)
@@ -90,8 +92,10 @@ def main():
 
         bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
-
-    return (dataset.model_path, scene.loaded_iter, scene.getTrainCameras()[0], gaussians, pipeline, background)
+        gt = scene.getTrainCameras()[0].original_image[0:3, :, :]
+        h, w = gt.size()[1:]
+        aspect_ratio = w / h
+    return (dataset.model_path, scene.loaded_iter, (w, h, aspect_ratio), gaussians, pipeline, background)
 
 def transformation_vuer2gs(matrix):
     transf = np.array(matrix).reshape(4, 4)
@@ -111,19 +115,25 @@ def run_render_with_view(view, others):
     #render_set
     from scene import cameras
     import math
-    model_path, loaded_iter, test_camera, gaussians, pipeline, background = others
-
+    model_path, loaded_iter, ori_render_img, gaussians, pipeline, background = others
+    ori_w, ori_h, ori_aspect = ori_render_img
     with torch.no_grad():
         view = view['camera']
-        #gt = test_camera.original_image[0:3, :, :]
-
         #Rt = c2w
         R, T = transformation_vuer2gs(view['matrix'])
         fov_rad = math.radians(view['fov'])
         trans = np.array(view['position'])
-        aspect = view['aspect']
-        height = view['height']
-        width = view['width']
+        camera_height = view["height"]
+        camera_width = view["width"]
+
+        if view["aspect"] <= ori_aspect:
+            render_height = camera_height
+            render_width = ori_w * camera_height / ori_h
+            crop_w, crop_h = int((render_width-camera_width)/2), 0
+        else:
+            render_height = camera_width / ori_w * ori_h
+            render_width = camera_width
+            crop_w, crop_h = 0, int((render_height - camera_height) / 2),
 
         gs_camera = cameras.Camera(
             colmap_id=0, R=R, T=T,
@@ -131,11 +141,12 @@ def run_render_with_view(view, others):
             image= None, gt_alpha_mask=None,
             image_name=None, uid=0,
             trans=trans,
-            image_width=width, image_height = height,
+            image_width=render_width, image_height = render_height,
         )
 
         rendering = render(gs_camera, gaussians, pipeline, background)["render"]
         ndarr = rendering.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+        ndarr = ndarr[crop_w:crop_w+camera_width, crop_h:crop_h+camera_height]
 
     return ndarr.astype(np.uint8)
 
