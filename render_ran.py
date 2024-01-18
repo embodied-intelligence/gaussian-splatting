@@ -9,40 +9,22 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 import os
-import random
-from argparse import ArgumentParser
-from pathlib import Path
-
-import torch
 import numpy as np
 import subprocess
 
 import torch
-from matplotlib import pyplot as plt
-from params_proto import PrefixProto, Proto
-
 from scene import Scene
-import os
-from tqdm import tqdm
-from os import makedirs
 from gaussian_renderer import render
-import torchvision
 from utils.general_utils import safe_state
-from argparse import ArgumentParser
-from arguments import ModelParams, PipelineParams, get_combined_args
+from arguments import ModelParams, PipelineParams
 from gaussian_renderer import GaussianModel
-
+from vuer_utils_se3 import rotation_matrix
 
 cmd = 'nvidia-smi -q -d Memory |grep -A4 GPU|grep Used'
 result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().split('\n')
 os.environ['CUDA_VISIBLE_DEVICES']=str(np.argmin([int(x.split()[2]) for x in result[:-1]]))
 os.system('echo $CUDA_VISIBLE_DEVICES')
 
-from scene import Scene
-from gaussian_renderer import render
-from utils.general_utils import safe_state
-from arguments import ModelParams, PipelineParams
-from gaussian_renderer import GaussianModel
 
 def GSArgs(model_path):
     from argparse import ArgumentParser, Namespace
@@ -111,20 +93,38 @@ def transformation_vuer2gs(matrix):
     T = Rt[:3, 3]
     return (R,T)
 
+def get_dic2arr(data):
+    key_list = list(data.keys())
+    return np.array([data[key] for key in key_list]), key_list
+
+
 def run_render_with_view(view, others):
     #render_set
     from scene import cameras
     import math
     model_path, loaded_iter, ori_render_img, gaussians, pipeline, background = others
     ori_w, ori_h, ori_aspect = ori_render_img
-    with torch.no_grad():
-        view = view['camera']
+    with (torch.no_grad()):
+        world = view['world']
+        view= view['camera']
+
         #Rt = c2w
+        #world = world_cordinate, camera-local coordinate
+        (wx, wy, wz), _ = get_dic2arr(world["rotation"])
+        world_mat = rotation_matrix(wx, wy, wz, unit="deg")
+        world_trans, _ = get_dic2arr(world["position"])
+
         R, T = transformation_vuer2gs(view['matrix'])
+        R = world_mat@R
+        T += world_trans
         fov_rad = math.radians(view['fov'])
-        trans = np.array(view['position'])
+
+        #world_trans, _ = get_dic2arr(world["position"])
+        trans = np.array(view['position']) #+ world_trans
+
         camera_height = view["height"]
         camera_width = view["width"]
+        scale =  world["scale"]
 
         if view["aspect"] <= ori_aspect:
             render_height = camera_height
@@ -140,7 +140,7 @@ def run_render_with_view(view, others):
             FoVx=fov_rad, FoVy=fov_rad,
             image= None, gt_alpha_mask=None,
             image_name=None, uid=0,
-            trans=trans,
+            trans=trans, scale = scale,
             image_width=render_width, image_height = render_height,
         )
 
@@ -159,6 +159,8 @@ if __name__ == "__main__":
                0.0, 0.0, 1.0, 0.0,
                0.0, 0.0, 0.0, 1.0],
     'position': [0.0, 0.0, 0.0],
+    'width': 1024,
+    'height': 768,
     'fov': 75,
         },
     }
