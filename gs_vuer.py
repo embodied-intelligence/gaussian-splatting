@@ -16,7 +16,6 @@ class GSVuer(ParamsProto):
     eps = 0.001
     fps = 30
 
-
 others = GS.main()  # load GS model
 timestamp = time.time()
 render_params = None
@@ -38,7 +37,7 @@ app = Vuer(
 @app.spawn
 async def show_heatmap(session):
     global render_params
-    session.set @ Scene(up=[0, -1, 0])
+    session.set @ Scene(up=[0, 0, -1])
 
     while True:
         if render_params is None:
@@ -71,14 +70,9 @@ async def show_heatmap(session):
 async def on_camera(event: ClientEvent, session):
     global render_params, timestamp
     assert event == "CAMERA_MOVE", "the event type should be correct"
+
     render_params = event.value
     timestamp = time.time()
-    pprint(event.value)
-    # print("camera event", event.etype, event.value)
-    # print("world transformation")
-    # world = event.value['world']
-    # print("position", world['position'])
-    # print("rotation", world['rotation'])
 
 
 app.add_handler("CAMERA_MOVE", on_camera)
