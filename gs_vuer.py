@@ -37,7 +37,7 @@ app = Vuer(
 @app.spawn
 async def show_heatmap(session):
     global render_params
-    session.set @ Scene(up=[0, 0, -1])
+    session.set @ Scene(up=[0, -1, 0]) # 0,0,-1
 
     while True:
         if render_params is None:
