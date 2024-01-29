@@ -53,13 +53,8 @@ def GSArgs(model_path):
     args = Namespace(**merged_dict)
     return args, model_args, pipline_args
 
-def main():
-
-    model_path = "/home/beantown/ran/gaussian-splatting/output/fd986845-9" # ball_add
-    #model_path = "/home/beantown/ran/gaussian-splatting/output/353df241-2" # stair_feature1
-    model_path = "/home/beantown/datasets/lucidSim/scenes/mit_stairs/stairs_0004_v1/output_gs"
-    args,  model_args, pipline_args= GSArgs(model_path=model_path)
-
+def main(model_path):
+    args,  model_args, pipline_args= GSArgs(model_path)
     #Initialize system state (RNG)
     safe_state(args.quiet)
 
@@ -140,7 +135,7 @@ def run_render_with_view(view, others):
             FoVx=fov_rad, FoVy=fov_rad,
             image= None, gt_alpha_mask=None,
             image_name=None, uid=0,
-            trans=trans, scale = scale,
+            trans=trans, scale=scale,
             image_width=render_width, image_height = render_height,
         )
 
