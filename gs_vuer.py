@@ -3,7 +3,7 @@ from asyncio import sleep
 from pathlib import Path
 from pprint import pprint
 
-from params_proto import ParamsProto
+from params_proto import ParamsProto, Proto, PrefixProto
 from vuer import Vuer
 from vuer.events import ClientEvent
 from vuer.schemas import Scene, ImageBackground
@@ -12,11 +12,14 @@ from vuer.schemas import Scene, ImageBackground
 # sys.path.append("/home/beantown/ran/mit/Scaffold-GS")
 import render_ran as GS
 
+class ModelArgs(PrefixProto):
+    model_path: str = Proto("/home/beantown/datasets/lucidSim/scenes/mit_stairs/stairs_0004_v1/output_gs", help="GS output dir")
+
 class GSVuer(ParamsProto):
     eps = 0.001
     fps = 30
 
-others = GS.main()  # load GS model
+others = GS.main(ModelArgs.model_path)  # load GS model
 timestamp = time.time()
 render_params = None
 
